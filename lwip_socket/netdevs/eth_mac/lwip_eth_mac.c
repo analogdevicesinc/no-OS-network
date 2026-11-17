@@ -10,6 +10,7 @@
 *******************************************************************************/
 #ifdef NO_OS_LWIP_NETWORKING
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -48,6 +49,8 @@ static int eth_mac_read_frames(struct capi_eth_mac_handle *desc, struct pbuf **p
 {
 	struct capi_eth_frame_buffer mac_buff;
 	uint32_t size;
+
+	bool direct;
 	int ret;
 
 	ret = capi_eth_mac_get_rx_frame_size(desc, &size);
@@ -58,23 +61,30 @@ static int eth_mac_read_frames(struct capi_eth_mac_handle *desc, struct pbuf **p
 	if (!size)
 		return 0;
 
-	ret = capi_eth_fb_init(&mac_buff, lwip_buff, sizeof(lwip_buff), 0);
-	if (ret)
-		return ret;
+	/* Read straight into the pbuf when it is one buffer, else through lwip_buff. */
+	*p = pbuf_alloc(PBUF_RAW, size, PBUF_POOL);
+	direct = *p && !(*p)->next;
 
-	ret = capi_eth_mac_read_frame(desc, &mac_buff);
-	if (ret < 0)
-		return ret;
+	if (direct)
+		ret = capi_eth_fb_init(&mac_buff, (*p)->payload, (*p)->len, 0);
+	else
+		ret = capi_eth_fb_init(&mac_buff, lwip_buff, sizeof(lwip_buff), 0);
+	if (!ret)
+		ret = capi_eth_mac_read_frame(desc, &mac_buff);
+	if (ret < 0 || !mac_buff.data_length) {
+		if (*p)
+			pbuf_free(*p);
+		return ret < 0 ? ret : 0;
+	}
 
-	*len = mac_buff.data_length;
-	if (!mac_buff.data_length)
-		return 0;
-
-	*p = pbuf_alloc(PBUF_RAW, mac_buff.data_length, PBUF_POOL);
 	if (!*p)
 		return -ENOMEM;
 
-	pbuf_take(*p, lwip_buff, mac_buff.data_length);
+	*len = mac_buff.data_length;
+	if (!direct)
+		pbuf_take(*p, lwip_buff, *len);
+	if (*len < size)
+		pbuf_realloc(*p, *len);
 
 	return 0;
 }
@@ -132,9 +142,15 @@ static int32_t eth_mac_netif_output(struct netif *net, struct pbuf *p)
 	mac_desc = lwip_desc->mac_desc;
 
 	LINK_STATS_INC(link.xmit);
-	frame_len = pbuf_copy_partial(p, lwip_buff, p->tot_len, 0);
 
-	ret = capi_eth_fb_init(&buff, lwip_buff, sizeof(lwip_buff), 0);
+	/* Send a one-buffer pbuf as it is; copy only a chain into lwip_buff. */
+	if (!p->next) {
+		frame_len = p->len;
+		ret = capi_eth_fb_init(&buff, p->payload, p->len, 0);
+	} else {
+		frame_len = pbuf_copy_partial(p, lwip_buff, p->tot_len, 0);
+		ret = capi_eth_fb_init(&buff, lwip_buff, sizeof(lwip_buff), 0);
+	}
 	if (ret)
 		return ret;
 

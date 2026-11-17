@@ -20,12 +20,14 @@ as `analog.local`.
 
 | Board | MAC | Preset |
 |---|---|---|
-| EVAL-ADIN1110EBZ | ADIN1110 on SPI2, from the capi-adin1110 package (no-OS-adin) | `eval-adin1110ebz` |
+| EVAL-ADIN1110EBZ | ADIN1110 on SPI2, from the no-os-adin package (no-OS-adin) | `eval-adin1110ebz` |
 
 ## Build and run
 
 With `CAPI_WORKSPACE` and `CAPI_DIR` set as in capi's README, and the
-platform's own setup done:
+platform's own setup done. The EVAL-ADIN1110EBZ build takes the ADIN1110
+driver from `no-OS-adin` in `CAPI_WORKSPACE`, next to `capi-stm32`, or from
+`NO_OS_ADIN_DIR` if that is set:
 
 ```bash
 cmake --preset eval-adin1110ebz

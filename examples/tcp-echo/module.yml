@@ -13,7 +13,7 @@ capi_version_requirement: ">=0.9.0"
 # cannot be selected per board, so it is resolved for every build.
 depends:
   platform:
-    stm32: {path: "//capi-stm32"}
+    stm32: {git: "https://github.com/analogdevicesinc/capi-stm32.git", checkout: main}
   packages:
-    - no-os-adin: {path: "//no-OS-adin"}
+    - no-os-adin: {path: "//no-OS-adin", git: "https://github.com/analogdevicesinc/no-OS-adin.git", checkout: main}
   interfaces: [uart, time, alloc, eth_mac]

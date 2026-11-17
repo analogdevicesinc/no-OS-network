@@ -1,7 +1,7 @@
 
 /***************************************************************************//**
- *   @file   lwip_adin1110.c
- *   @brief  Source file for the ADIN1110 LWIP implementation.
+ *   @file   lwip_eth_mac.c
+ *   @brief  Source file for the lwIP netdev on a CAPI Ethernet MAC.
  *   @author Ciprian Regus (ciprian.regus@analog.com)
 ********************************************************************************
  * Copyright 2023(c) Analog Devices, Inc.
@@ -32,9 +32,9 @@
 #include "tcp_socket.h"
 
 #include "capi_eth_mac.h"
-#include "lwip_adin1110.h"
+#include "lwip_eth_mac.h"
 
-static uint8_t lwip_buff[ADIN1110_LWIP_BUFF_SIZE];
+static uint8_t lwip_buff[ETH_MAC_LWIP_BUFF_SIZE];
 
 /**
  * @brief Read a frame from the RX FIFO.
@@ -43,7 +43,7 @@ static uint8_t lwip_buff[ADIN1110_LWIP_BUFF_SIZE];
  * @param len - length of the frame.
  * @return 0 in case of success, negative error otherwise.
  */
-static int adin1110_read_frames(struct capi_eth_mac_handle *desc, struct pbuf **p,
+static int eth_mac_read_frames(struct capi_eth_mac_handle *desc, struct pbuf **p,
 				uint32_t *len)
 {
 	struct capi_eth_frame_buffer mac_buff;
@@ -85,7 +85,7 @@ static int adin1110_read_frames(struct capi_eth_mac_handle *desc, struct pbuf **
  * @param data - netif to RX data.
  * @return 0 in case of success, negative error otherwise.
  */
-static int32_t adin1110_step(struct lwip_network_desc *desc, void *data)
+static int32_t eth_mac_step(struct lwip_network_desc *desc, void *data)
 {
 	struct capi_eth_mac_handle *mac_desc;
 	struct netif *netif_desc;
@@ -97,7 +97,7 @@ static int32_t adin1110_step(struct lwip_network_desc *desc, void *data)
 	mac_desc = desc->mac_desc;
 
 	do {
-		ret = adin1110_read_frames(mac_desc, &p, &len);
+		ret = eth_mac_read_frames(mac_desc, &p, &len);
 		if (ret)
 			return ret;
 
@@ -120,7 +120,7 @@ static int32_t adin1110_step(struct lwip_network_desc *desc, void *data)
  * @param p - pbuf to be sent.
  * @return 0 in case of success, negative error otherwise.
  */
-static int32_t adin1110_netif_output(struct netif *net, struct pbuf *p)
+static int32_t eth_mac_netif_output(struct netif *net, struct pbuf *p)
 {
 	struct lwip_network_desc *lwip_desc;
 	struct capi_eth_mac_handle *mac_desc;
@@ -151,15 +151,15 @@ static int32_t adin1110_netif_output(struct netif *net, struct pbuf *p)
  *		  (struct capi_eth_mac_init_config).
  * @return 0 in case of success, negative error otherwise.
  */
-static int32_t adin1110_lwip_init(void **desc, void *param)
+static int32_t eth_mac_lwip_init(void **desc, void *param)
 {
-	struct capi_eth_mac_handle *adin1110 = NULL;
-	struct capi_eth_mac_init_config *adin1110_ip = param;
+	struct capi_eth_mac_handle *mac = NULL;
+	struct capi_eth_mac_init_config *mac_param = param;
 	uint8_t mdns_mcast_addr[NETIF_MAX_HWADDR_LEN] = {0x01, 0x00, 0x5E, 0x00, 0x00, 0xFB};
 	uint8_t slot;
 	int32_t ret;
 
-	ret = capi_eth_mac_init(&adin1110, adin1110_ip);
+	ret = capi_eth_mac_init(&mac, mac_param);
 	if (ret)
 		return ret;
 
@@ -169,25 +169,25 @@ static int32_t adin1110_lwip_init(void **desc, void *param)
 	 * here.
 	 */
 
-	ret = capi_eth_mac_set_broadcast(adin1110, true);
+	ret = capi_eth_mac_set_broadcast(mac, true);
 	if (ret)
 		goto free_descriptor;
 
-	ret = capi_eth_mac_set_address_filter(adin1110, mdns_mcast_addr, &slot);
+	ret = capi_eth_mac_set_address_filter(mac, mdns_mcast_addr, &slot);
 	if (ret)
 		goto free_descriptor;
 
 	/* DEVIATION: a CAPI MAC passes no frames until it is started. */
-	ret = capi_eth_mac_start(adin1110);
+	ret = capi_eth_mac_start(mac);
 	if (ret)
 		goto free_descriptor;
 
-	*desc = adin1110;
+	*desc = mac;
 
 	return 0;
 
 free_descriptor:
-	capi_eth_mac_deinit(adin1110);
+	capi_eth_mac_deinit(mac);
 
 	return ret;
 }
@@ -197,18 +197,18 @@ free_descriptor:
  * @param desc - Ethernet MAC handle.
  * @return 0 in case of success, negative error otherwise.
  */
-static int32_t adin1110_lwip_remove(void *desc)
+static int32_t eth_mac_lwip_remove(void *desc)
 {
-	struct capi_eth_mac_handle *adin1110 = desc;
+	struct capi_eth_mac_handle *mac = desc;
 
-	return capi_eth_mac_deinit(adin1110);
+	return capi_eth_mac_deinit(mac);
 }
 
-const struct no_os_lwip_ops adin1110_lwip_ops = {
-	.init = adin1110_lwip_init,
-	.remove = adin1110_lwip_remove,
-	.netif_output = adin1110_netif_output,
-	.step = adin1110_step,
+const struct no_os_lwip_ops eth_mac_lwip_ops = {
+	.init = eth_mac_lwip_init,
+	.remove = eth_mac_lwip_remove,
+	.netif_output = eth_mac_netif_output,
+	.step = eth_mac_step,
 };
 
 #endif /* NO_OS_LWIP_NETWORKING */

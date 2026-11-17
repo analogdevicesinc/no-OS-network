@@ -1,0 +1,19 @@
+# Copyright (c) 2026 Analog Devices, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: no-os-network-tcp-echo
+type: application
+version: "0.9.0"
+description: "no-OS lwip_socket and tcp_socket on CAPI: a TCP echo server"
+
+capi_version_requirement: ">=0.9.0"
+
+# Each key under depends.platform is a value of PLATFORM in a preset.
+# capi-adin1110 is used only by boards whose MAC is an ADIN1110; packages
+# cannot be selected per board, so it is resolved for every build.
+depends:
+  platform:
+    stm32: {path: "//capi-stm32"}
+  packages:
+    - capi-adin1110: {path: "//no-os-adin"}
+  interfaces: [uart, time, alloc, eth_mac]

@@ -577,15 +577,18 @@ static int32_t lwip_socket_send(void *net, uint32_t sock_id, const void *data,
 
 	size = no_os_min(avail, size);
 	err = tcp_write(sock->pcb, data, size, flags);
+	/* Out of queue space: nothing was sent, try again later. */
+	if (err == ERR_MEM)
+		return 0;
 	if (err != ERR_OK)
-		return err;
+		return -EIO;
 
-	if (!(flags & TCP_WRITE_FLAG_MORE)) {
-		/* Mark data as ready to be sent */
-		err = tcp_output(sock->pcb);
-		if (err != ERR_OK)
-			return err;
-	}
+	/*
+	 * The data is queued. lwIP sends it again if this output fails, so a
+	 * failure here does not fail the send.
+	 */
+	if (!(flags & TCP_WRITE_FLAG_MORE))
+		tcp_output(sock->pcb);
 
 	return size;
 }

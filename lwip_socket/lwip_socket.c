@@ -411,6 +411,12 @@ static void lwip_err_callback(void *arg, err_t err)
 {
 	struct lwip_socket_desc *socket = arg;
 
+	/* lwIP has already freed the pcb. */
+	socket->pcb = NULL;
+	if (socket->p)
+		pbuf_free(socket->p);
+	socket->p = NULL;
+	socket->p_idx = 0;
 	socket->state = SOCKET_CLOSED;
 }
 

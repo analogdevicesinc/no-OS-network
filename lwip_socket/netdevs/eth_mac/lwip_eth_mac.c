@@ -157,7 +157,13 @@ static int32_t eth_mac_netif_output(struct netif *net, struct pbuf *p)
 	buff.end = frame_len;
 	buff.data_length = frame_len;
 
-	return capi_eth_mac_send_frame(mac_desc, &buff);
+	ret = capi_eth_mac_send_frame(mac_desc, &buff);
+
+	/* lwIP takes an err_t: ERR_MEM makes it send the segment again later. */
+	if (ret == -EAGAIN || ret == -ENOBUFS)
+		return ERR_MEM;
+
+	return ret ? ERR_IF : ERR_OK;
 }
 
 /**

@@ -1,0 +1,12 @@
+# Copyright (c) 2026 Analog Devices, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: no-os-network
+type: middleware
+version: "0.9.0"
+description: "no-OS network code on CAPI: the socket API and its lwIP backend over a CAPI Ethernet MAC"
+
+capi_version_requirement: ">=0.9.0"
+
+depends:
+  interfaces: [eth_mac, time, alloc]

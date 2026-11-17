@@ -1,0 +1,19 @@
+# Copyright (c) 2026 Analog Devices, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: no-os-network-iperf-tcp
+type: application
+version: "0.9.0"
+description: "lwIP lwiperf on CAPI: an iperf2 TCP server"
+
+capi_version_requirement: ">=0.9.0"
+
+# Each key under depends.platform is a value of PLATFORM in a preset.
+# no-os-adin is used only by boards whose MAC is an ADIN1110; packages
+# cannot be selected per board, so it is resolved for every build.
+depends:
+  platform:
+    stm32: {path: "//capi-stm32"}
+  packages:
+    - no-os-adin: {path: "//no-OS-adin"}
+  interfaces: [uart, time, alloc, eth_mac]

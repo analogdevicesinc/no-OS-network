@@ -1,0 +1,21 @@
+{
+    "version": 7,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 27,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "eval-adin1110ebz",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build-stm32/eval-adin1110ebz",
+            "cacheVariables": {
+                "PLATFORM": "stm32",
+                "BOARD": "eval-adin1110ebz",
+                "TARGET": "stm32l4s5",
+                "USE_VENDOR_TOOLCHAIN": "ON"
+            }
+        }
+    ]
+}

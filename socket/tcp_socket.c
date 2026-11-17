@@ -13,7 +13,7 @@
 #include "no_os_error.h"
 #include "tcp_socket.h"
 #include "no_os_util.h"
-#include "no_os_alloc.h"
+#include "capi_alloc.h"
 
 /* NOTE: TCP socket communication is not secured */
 
@@ -37,7 +37,7 @@ int32_t socket_init(struct tcp_socket_desc **desc,
 	if (!desc || !param)
 		return -1;
 
-	ldesc = (typeof(ldesc))no_os_calloc(1, sizeof(*ldesc));
+	ldesc = (typeof(ldesc))capi_calloc(1, sizeof(*ldesc));
 	if (!ldesc)
 		return -1;
 
@@ -51,7 +51,7 @@ int32_t socket_init(struct tcp_socket_desc **desc,
 	ret = ldesc->net->socket_open(ldesc->net->net, &ldesc->id, PROTOCOL_TCP,
 				      buff_size);
 	if (NO_OS_IS_ERR_VALUE(ret)) {
-		no_os_free(ldesc);
+		capi_free(ldesc);
 		return ret;
 	}
 
@@ -77,7 +77,7 @@ int32_t socket_remove(struct tcp_socket_desc *desc)
 	ret = desc->net->socket_close(desc->net->net, desc->id);
 	if (NO_OS_IS_ERR_VALUE(ret))
 		return ret;
-	no_os_free(desc);
+	capi_free(desc);
 
 	return 0;
 }
@@ -155,7 +155,7 @@ int32_t socket_accept(struct tcp_socket_desc *desc,
 	if (NO_OS_IS_ERR_VALUE(ret))
 		return ret;
 
-	*new_client = (typeof(*new_client))no_os_calloc(1, sizeof(**new_client));
+	*new_client = (typeof(*new_client))capi_calloc(1, sizeof(**new_client));
 	if (!*new_client) {
 		desc->net->socket_close(desc->net->net, desc->id);
 		return -ENOMEM;

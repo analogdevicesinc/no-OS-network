@@ -28,43 +28,53 @@
 #include "netif/ethernet.h"
 #include "lwip/inet.h"
 #include "lwip_socket.h"
-#include "no_os_delay.h"
+#include "capi_time.h"
 #include "tcp_socket.h"
 
-#include "adin1110.h"
+#include "capi_eth_mac.h"
 #include "lwip_adin1110.h"
 
 static uint8_t lwip_buff[ADIN1110_LWIP_BUFF_SIZE];
 
 /**
  * @brief Read a frame from the RX FIFO.
- * @param desc - ADIN1110 descriptor.
+ * @param desc - Ethernet MAC handle.
  * @param p - the received pbuf.
  * @param len - length of the frame.
  * @return 0 in case of success, negative error otherwise.
  */
-static int adin1110_read_frames(struct adin1110_desc *desc, struct pbuf **p,
+static int adin1110_read_frames(struct capi_eth_mac_handle *desc, struct pbuf **p,
 				uint32_t *len)
 {
-	struct adin1110_eth_buff mac_buff = {0};
+	struct capi_eth_frame_buffer mac_buff;
+	uint32_t size;
 	int ret;
 
-	mac_buff.payload = &lwip_buff[ADIN1110_ETH_HDR_LEN];
-
-	ret = adin1110_read_fifo(desc, 0, &mac_buff);
+	ret = capi_eth_mac_get_rx_frame_size(desc, &size);
 	if (ret)
 		return ret;
 
-	*len = mac_buff.len;
-	if (!mac_buff.len)
+	*len = 0;
+	if (!size)
 		return 0;
 
-	memcpy(lwip_buff, mac_buff.mac_dest, ADIN1110_ETH_HDR_LEN);
-	*p = pbuf_alloc(PBUF_RAW, mac_buff.len, PBUF_POOL);
+	ret = capi_eth_fb_init(&mac_buff, lwip_buff, sizeof(lwip_buff), 0);
+	if (ret)
+		return ret;
+
+	ret = capi_eth_mac_read_frame(desc, &mac_buff);
+	if (ret < 0)
+		return ret;
+
+	*len = mac_buff.data_length;
+	if (!mac_buff.data_length)
+		return 0;
+
+	*p = pbuf_alloc(PBUF_RAW, mac_buff.data_length, PBUF_POOL);
 	if (!*p)
 		return -ENOMEM;
 
-	pbuf_take(*p, lwip_buff, mac_buff.len);
+	pbuf_take(*p, lwip_buff, mac_buff.data_length);
 
 	return 0;
 }
@@ -77,7 +87,7 @@ static int adin1110_read_frames(struct adin1110_desc *desc, struct pbuf **p,
  */
 static int32_t adin1110_step(struct lwip_network_desc *desc, void *data)
 {
-	struct adin1110_desc *mac_desc;
+	struct capi_eth_mac_handle *mac_desc;
 	struct netif *netif_desc;
 	struct pbuf *p;
 	uint32_t len;
@@ -113,9 +123,10 @@ static int32_t adin1110_step(struct lwip_network_desc *desc, void *data)
 static int32_t adin1110_netif_output(struct netif *net, struct pbuf *p)
 {
 	struct lwip_network_desc *lwip_desc;
-	struct adin1110_desc *mac_desc;
-	struct adin1110_eth_buff buff;
+	struct capi_eth_mac_handle *mac_desc;
+	struct capi_eth_frame_buffer buff;
 	uint32_t frame_len;
+	int ret;
 
 	lwip_desc = net->state;
 	mac_desc = lwip_desc->mac_desc;
@@ -123,40 +134,51 @@ static int32_t adin1110_netif_output(struct netif *net, struct pbuf *p)
 	LINK_STATS_INC(link.xmit);
 	frame_len = pbuf_copy_partial(p, lwip_buff, p->tot_len, 0);
 
-	memcpy(&buff.mac_dest, lwip_buff, ADIN1110_ETH_HDR_LEN);
+	ret = capi_eth_fb_init(&buff, lwip_buff, sizeof(lwip_buff), 0);
+	if (ret)
+		return ret;
 
-	buff.len = frame_len;
-	buff.payload = &lwip_buff[ADIN1110_ETH_HDR_LEN];
+	buff.end = frame_len;
+	buff.data_length = frame_len;
 
-	return adin1110_write_fifo(mac_desc, 0, &buff);
+	return capi_eth_mac_send_frame(mac_desc, &buff);
 }
 
 /**
- * @brief Intialize and configure filters for the ADIN1110.
- * @param desc - descriptor for the ADIN1110.
- * @param param - parameter for the ADIN1110.
+ * @brief Intialize and configure filters for the Ethernet MAC.
+ * @param desc - Ethernet MAC handle.
+ * @param param - initialization parameters for the Ethernet MAC
+ *		  (struct capi_eth_mac_init_config).
  * @return 0 in case of success, negative error otherwise.
  */
 static int32_t adin1110_lwip_init(void **desc, void *param)
 {
-	struct adin1110_desc *adin1110;
-	struct adin1110_init_param *adin1110_ip = param;
+	struct capi_eth_mac_handle *adin1110 = NULL;
+	struct capi_eth_mac_init_config *adin1110_ip = param;
 	uint8_t mdns_mcast_addr[NETIF_MAX_HWADDR_LEN] = {0x01, 0x00, 0x5E, 0x00, 0x00, 0xFB};
+	uint8_t slot;
 	int32_t ret;
 
-	ret = adin1110_init(&adin1110, adin1110_ip);
+	ret = capi_eth_mac_init(&adin1110, adin1110_ip);
 	if (ret)
 		return ret;
 
-	ret = adin1110_set_mac_addr(adin1110, adin1110->mac_address);
+	/*
+	 * DEVIATION: the CAPI MAC takes its station address from its init
+	 * parameters and accepts it from init, so it gets no filter slot
+	 * here.
+	 */
+
+	ret = capi_eth_mac_set_broadcast(adin1110, true);
 	if (ret)
 		goto free_descriptor;
 
-	ret = adin1110_broadcast_filter(adin1110, true);
+	ret = capi_eth_mac_set_address_filter(adin1110, mdns_mcast_addr, &slot);
 	if (ret)
 		goto free_descriptor;
 
-	ret = adin1110_set_mac_addr(adin1110, mdns_mcast_addr);
+	/* DEVIATION: a CAPI MAC passes no frames until it is started. */
+	ret = capi_eth_mac_start(adin1110);
 	if (ret)
 		goto free_descriptor;
 
@@ -165,21 +187,21 @@ static int32_t adin1110_lwip_init(void **desc, void *param)
 	return 0;
 
 free_descriptor:
-	adin1110_remove(adin1110);
+	capi_eth_mac_deinit(adin1110);
 
 	return ret;
 }
 
 /**
- * @brief Remove the ADIN1110 descriptor.
- * @param desc - descriptor for the ADIN1110.
+ * @brief Remove the Ethernet MAC handle.
+ * @param desc - Ethernet MAC handle.
  * @return 0 in case of success, negative error otherwise.
  */
 static int32_t adin1110_lwip_remove(void *desc)
 {
-	struct adin1110_desc *adin1110 = desc;
+	struct capi_eth_mac_handle *adin1110 = desc;
 
-	return adin1110_remove(adin1110);
+	return capi_eth_mac_deinit(adin1110);
 }
 
 const struct no_os_lwip_ops adin1110_lwip_ops = {

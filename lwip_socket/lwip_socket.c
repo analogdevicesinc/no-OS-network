@@ -43,7 +43,7 @@
 #include "capi_alloc.h"
 #include "tcp_socket.h"
 
-#include "adin1110.h"
+#include "no_os_util.h"
 
 static bool mdns_result;
 static bool mdns_is_conflict;

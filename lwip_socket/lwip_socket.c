@@ -443,9 +443,12 @@ static int32_t lwip_socket_close(void *net, uint32_t sock_id)
 		pbuf_free(sock->p);
 	}
 
-	tcp_close(sock->pcb);
+	/* tcp_close() may free the pcb; tcp_abort() does when it fails. */
+	tcp_arg(sock->pcb, NULL);
 	tcp_recv(sock->pcb, NULL);
 	tcp_err(sock->pcb, NULL);
+	if (tcp_close(sock->pcb) != ERR_OK)
+		tcp_abort(sock->pcb);
 
 	sock->p_idx = 0;
 	sock->pcb = NULL;

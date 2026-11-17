@@ -136,6 +136,7 @@ static int32_t eth_mac_netif_output(struct netif *net, struct pbuf *p)
 	struct capi_eth_mac_handle *mac_desc;
 	struct capi_eth_frame_buffer buff;
 	uint32_t frame_len;
+	uint32_t start;
 	int ret;
 
 	lwip_desc = net->state;
@@ -157,7 +158,14 @@ static int32_t eth_mac_netif_output(struct netif *net, struct pbuf *p)
 	buff.end = frame_len;
 	buff.data_length = frame_len;
 
-	ret = capi_eth_mac_send_frame(mac_desc, &buff);
+	/* A MAC whose TX queue is full is polled until it takes the frame. */
+	start = sys_now();
+	do {
+		ret = capi_eth_mac_send_frame(mac_desc, &buff);
+		if (ret != -EAGAIN && ret != -ENOBUFS)
+			break;
+		capi_eth_mac_poll(mac_desc);
+	} while (sys_now() - start < ETH_MAC_LWIP_TX_TIMEOUT_MS);
 
 	/* lwIP takes an err_t: ERR_MEM makes it send the segment again later. */
 	if (ret == -EAGAIN || ret == -ENOBUFS)

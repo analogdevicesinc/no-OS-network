@@ -15,6 +15,9 @@
 
 #define ETH_MAC_LWIP_BUFF_SIZE 2000
 
+/* How long a frame to send waits for a MAC whose TX queue is full */
+#define ETH_MAC_LWIP_TX_TIMEOUT_MS 20
+
 extern const struct no_os_lwip_ops eth_mac_lwip_ops;
 
 #endif /* NO_OS_LWIP_NETWORKING */

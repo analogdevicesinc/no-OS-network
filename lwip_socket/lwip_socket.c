@@ -39,8 +39,8 @@
 #include "arch/cc.h"
 #include "lwip_socket.h"
 
-#include "no_os_delay.h"
-#include "no_os_alloc.h"
+#include "capi_time.h"
+#include "capi_alloc.h"
 #include "tcp_socket.h"
 
 #include "adin1110.h"
@@ -339,7 +339,7 @@ int32_t no_os_lwip_init(struct lwip_network_desc **desc,
 	while (!netif_descriptor->ip_addr.addr && dhcp_timeout > 0) {
 		no_os_lwip_step(descriptor, descriptor);
 		dhcp_timeout--;
-		no_os_mdelay(1);
+		capi_wait_ms(1);
 	}
 
 	if (!dhcp_timeout && !netif_descriptor->ip_addr.addr) {
@@ -396,8 +396,8 @@ int32_t no_os_lwip_remove(struct lwip_network_desc *desc)
 
 	desc->platform_ops->remove(desc->mac_desc);
 	netif_remove(desc->lwip_netif);
-	no_os_free(desc->lwip_netif);
-	no_os_free(desc);
+	capi_free(desc->lwip_netif);
+	capi_free(desc);
 
 	return 0;
 }
@@ -873,9 +873,11 @@ static int32_t lwip_socket_disconnect(void *net, uint32_t sock_id)
  */
 u32_t sys_now(void)
 {
-	struct no_os_time time = no_os_get_time();
+	uint64_t us = 0;
 
-	return time.s * 1000 + time.us / 1000;
+	capi_uptime(&us);
+
+	return us / 1000;
 }
 
 struct network_interface lwip_socket_ops = {

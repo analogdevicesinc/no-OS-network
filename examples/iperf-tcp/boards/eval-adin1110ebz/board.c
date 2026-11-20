@@ -6,7 +6,6 @@
  * RESET_N on PC7 and the SPI_CFG0/SPI_CFG1 straps readable on PC8/PC9. The
  * MAC is the no-OS ADIN1110 driver, as a CAPI Ethernet MAC.
  */
-#include <errno.h>
 #include <string.h>
 
 #include "capi_gpio.h"
@@ -91,7 +90,7 @@ int board_eth_mac_config(struct capi_eth_mac_init_config *cfg, uint8_t hwaddr[6]
 	/*
 	 * The SPI_CFG1/SPI_CFG0 straps select the SPI protocol: OPEN Alliance
 	 * with (0/0) or without (0/1) protection, or generic SPI with (1/0) or
-	 * without (1/1) CRC. The driver cannot select protected OPEN Alliance.
+	 * without (1/1) CRC.
 	 */
 	ret = read_strap(&cfg0, &spi_cfg0);
 	if (ret)
@@ -99,9 +98,8 @@ int board_eth_mac_config(struct capi_eth_mac_init_config *cfg, uint8_t hwaddr[6]
 	ret = read_strap(&cfg1, &spi_cfg1);
 	if (ret)
 		return ret;
-	if (!spi_cfg1 && !spi_cfg0)
-		return -ENOTSUP;
 	adin_param.oa_tc6_spi = !spi_cfg1;
+	adin_param.prote_spi = !spi_cfg1 && !spi_cfg0;
 	adin_param.append_crc = spi_cfg1 && !spi_cfg0;
 
 	cfg->ops = &adin1110_eth_mac_ops;
